@@ -1,0 +1,9 @@
+project:
+  name: NeuroSentinel
+  version: 0.1.0
+  random_seed: 42
+models:
+  forecasting: ridge-lagged-regression
+  anomaly: isolation-forest
+  nlp: lexical-baseline
+  vision: statistical-image-baseline
