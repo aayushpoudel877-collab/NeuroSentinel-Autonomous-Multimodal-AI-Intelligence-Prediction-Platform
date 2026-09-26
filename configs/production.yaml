@@ -1,0 +1,10 @@
+service:
+  workers: 2
+  timeout_seconds: 30
+security:
+  api_key_required: false
+monitoring:
+  latency_alert_ms: 1000
+  drift_threshold: 0.1
+artifacts:
+  directory: models/artifacts
