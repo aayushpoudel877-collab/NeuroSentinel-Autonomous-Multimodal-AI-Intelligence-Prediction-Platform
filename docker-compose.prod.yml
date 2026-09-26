@@ -1,0 +1,15 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    ports:
+      - '8000:8000'
+    environment:
+      NEUROSENTINEL_ENV: production
+      NEUROSENTINEL_LOG_LEVEL: INFO
+    healthcheck:
+      test: ['CMD','python','docker/healthcheck.py']
+      interval: 30s
+      timeout: 5s
+      retries: 3
