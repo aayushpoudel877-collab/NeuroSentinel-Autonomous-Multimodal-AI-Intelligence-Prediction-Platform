@@ -10,7 +10,7 @@ from app.experiments.benchmark import run_tabular_benchmark
 
 class NeuroSentinelOrchestrator:
     def __init__(self):
-        self.text=TextAnalyzer(); self.forecast=Forecaster(); self.anomaly=AnomalyDetector(); self.vision=VisionClassifier(); self.fusion=MultimodalFusion(); self.drift=DriftDetector(); self.health_monitor=HealthMonitor(); self.inference_metrics=InferenceMetrics()
+        self.text=TextAnalyzer(); self.forecast=Forecaster(); self.anomaly=AnomalyDetector(); self.vision=VisionClassifier(); self.fusion=MultimodalFusion(); self.temporal=TemporalRegressor(); self.learned_fusion=LearnedFusion(); self.vision_dl=ImageFeatureClassifier(); self.drift=DriftDetector(); self.health_monitor=HealthMonitor(); self.inference_metrics=InferenceMetrics()
     def model_registry(self):
         return {'models':[
             {'name':'neurosentinel-text','task':'NLP','status':'ready','version':'0.3.0'},
@@ -18,7 +18,7 @@ class NeuroSentinelOrchestrator:
             {'name':'neurosentinel-anomaly','task':'anomaly-detection','status':'ready','version':'0.3.0'},
             {'name':'neurosentinel-neural','task':'multilayer-MLP','status':'trainable','version':'0.3.0'},
             {'name':'neurosentinel-vision','task':'computer-vision','status':'ready','version':'0.3.0'},
-            {'name':'neurosentinel-embedding','task':'text-embedding','status':'ready','version':'0.3.0'}]}
+            {'name':'neurosentinel-embedding','task':'text-embedding','status':'ready','version':'0.3.0'}, {'name':'neurosentinel-temporal','task':'temporal-regression','status':'trainable','version':'0.4.0'}, {'name':'neurosentinel-learned-fusion','task':'multimodal-fusion','status':'trainable','version':'0.4.0'}, {'name':'neurosentinel-vision-dl','task':'vision-feature-classification','status':'trainable','version':'0.4.0'}]}
     def health(self): return self.health_monitor.snapshot(len(self.model_registry()['models']))
     def metrics(self): return self.inference_metrics.snapshot()
     def benchmark(self): return run_tabular_benchmark().to_dict()
