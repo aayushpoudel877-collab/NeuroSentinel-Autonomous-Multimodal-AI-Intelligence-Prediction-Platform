@@ -1,0 +1,8 @@
+{
+  "name": "neurosentinel-research",
+  "version": "0.2.0",
+  "task": "multimodal-intelligence",
+  "source": "user-provided-or-public-datasets",
+  "license": "dataset-dependent",
+  "notes": "Dataset metadata must be completed before training on external data."
+}
