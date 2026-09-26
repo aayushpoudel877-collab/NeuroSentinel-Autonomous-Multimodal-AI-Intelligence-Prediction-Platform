@@ -1,0 +1,20 @@
+models:
+  text:
+    type: lexical-baseline
+    version: 0.2.0
+  forecasting:
+    type: ridge-lagged
+    version: 0.2.0
+  anomaly:
+    type: isolation-forest
+    version: 0.2.0
+  neural:
+    type: mlp
+    hidden_layers: [64, 32, 16]
+    version: 0.2.0
+  vision:
+    type: image-statistics-baseline
+    version: 0.2.0
+fusion:
+  strategy: confidence-weighted-late-fusion
+  minimum_confidence: 0.25
