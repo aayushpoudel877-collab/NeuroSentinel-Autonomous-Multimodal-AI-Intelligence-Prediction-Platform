@@ -6,6 +6,7 @@ from app.models.fusion import MultimodalFusion
 from app.monitoring.drift import DriftDetector
 from app.monitoring.health import HealthMonitor
 from app.monitoring.metrics import InferenceMetrics
+from app.experiments.benchmark import run_tabular_benchmark
 
 class NeuroSentinelOrchestrator:
     def __init__(self):
@@ -20,3 +21,4 @@ class NeuroSentinelOrchestrator:
             {'name':'neurosentinel-embedding','task':'text-embedding','status':'ready','version':'0.3.0'}]}
     def health(self): return self.health_monitor.snapshot(len(self.model_registry()['models']))
     def metrics(self): return self.inference_metrics.snapshot()
+    def benchmark(self): return run_tabular_benchmark().to_dict()
