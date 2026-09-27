@@ -19,7 +19,7 @@ def serving(): return engine.serving_snapshot()
 @app.get("/v1/serving/health")
 def serving_health(): return engine.serving_health()
 @app.get("/v1/monitoring/events")
-def monitoring_events(): return engine.events.recent(100)
+def monitoring_events(_=Depends(require_api_key)): return engine.events.recent(100)
 @app.post("/v1/models/promote")
 def promote(request:PromotionRequest,_=Depends(require_api_key)):
     try: return engine.promote_model(request.model,request.version,request.metric,request.threshold,request.greater_is_better,request.status)
@@ -33,7 +33,7 @@ def evaluate_retraining(request:RetrainingRequest,_=Depends(require_api_key)):
 def plan_retraining(request:RetrainingPlanRequest,_=Depends(require_api_key)):
     return engine.plan_retraining(request.model,{"retrain":request.retrain,"reasons":request.reasons,"drift_score":request.drift_score,"error_rate":request.error_rate})
 @app.get("/v1/retraining/{job_id}")
-def get_retraining_job(job_id:str):
+def get_retraining_job(job_id:str,_=Depends(require_api_key)):
     try: return engine.retraining.load(job_id).to_dict()
     except FileNotFoundError as exc: raise HTTPException(status_code=404,detail="retraining job not found") from exc
 @app.get("/v1/benchmark")
