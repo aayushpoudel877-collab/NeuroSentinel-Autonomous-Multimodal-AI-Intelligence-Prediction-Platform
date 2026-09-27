@@ -10,18 +10,38 @@ from app.experiments.benchmark import run_tabular_benchmark
 from app.models.temporal import TemporalRegressor
 from app.models.fusion_dl import LearnedFusion
 from app.models.vision_dl import ImageFeatureClassifier
+from app.mlops.registry import ModelRecord,ModelRegistry
+from app.mlops.gates import PromotionGate,PromotionPolicy
+from app.serving.router import Route,ServingRouter
+from app.serving.health import serving_health
 
 class NeuroSentinelOrchestrator:
     def __init__(self):
         self.text=TextAnalyzer(); self.forecast=Forecaster(); self.anomaly=AnomalyDetector(); self.vision=VisionClassifier(); self.fusion=MultimodalFusion(); self.temporal=TemporalRegressor(); self.learned_fusion=LearnedFusion(); self.vision_dl=ImageFeatureClassifier(); self.drift=DriftDetector(); self.health_monitor=HealthMonitor(); self.inference_metrics=InferenceMetrics()
-    def model_registry(self):
-        return {'models':[
-            {'name':'neurosentinel-text','task':'NLP','status':'ready','version':'0.4.0'},
-            {'name':'neurosentinel-forecast','task':'time-series','status':'ready','version':'0.4.0'},
-            {'name':'neurosentinel-anomaly','task':'anomaly-detection','status':'ready','version':'0.4.0'},
-            {'name':'neurosentinel-neural','task':'multilayer-MLP','status':'trainable','version':'0.4.0'},
-            {'name':'neurosentinel-vision','task':'computer-vision','status':'ready','version':'0.4.0'},
-            {'name':'neurosentinel-embedding','task':'text-embedding','status':'ready','version':'0.4.0'}, {'name':'neurosentinel-temporal','task':'temporal-regression','status':'trainable','version':'0.4.0'}, {'name':'neurosentinel-learned-fusion','task':'multimodal-fusion','status':'trainable','version':'0.4.0'}, {'name':'neurosentinel-vision-dl','task':'vision-feature-classification','status':'trainable','version':'0.4.0'}, {'name':'neurosentinel-transformer-text','task':'transformer-NLP','status':'optional','version':'0.4.0'}, {'name':'neurosentinel-resnet-vision','task':'neural-vision','status':'optional','version':'0.4.0'}, {'name':'neurosentinel-gru-temporal','task':'neural-temporal','status':'optional','version':'0.4.0'}, {'name':'neurosentinel-neural-fusion','task':'neural-multimodal-fusion','status':'optional','version':'0.4.0'}]}
-    def health(self): return self.health_monitor.snapshot(len(self.model_registry()['models']))
+        self.registry=ModelRegistry(); self.serving=ServingRouter(self.registry); self._seed_registry(); self._register_routes()
+    def _seed_registry(self):
+        models=[
+            ("neurosentinel-text","NLP","production"),("neurosentinel-forecast","time-series","production"),("neurosentinel-anomaly","anomaly-detection","production"),
+            ("neurosentinel-neural","multilayer-MLP","candidate"),("neurosentinel-vision","computer-vision","production"),("neurosentinel-embedding","text-embedding","production"),
+            ("neurosentinel-temporal","temporal-regression","candidate"),("neurosentinel-learned-fusion","multimodal-fusion","candidate"),("neurosentinel-vision-dl","vision-feature-classification","candidate"),
+            ("neurosentinel-transformer-text","transformer-NLP","candidate"),("neurosentinel-resnet-vision","neural-vision","candidate"),("neurosentinel-gru-temporal","neural-temporal","candidate"),("neurosentinel-neural-fusion","neural-multimodal-fusion","candidate")]
+        existing={(x["name"],x["version"]) for x in self.registry.list()}
+        for name,task,status in models:
+            if (name,"0.5.0") not in existing: self.registry.register(ModelRecord(name,"0.5.0",task,status=status))
+    def _register_routes(self):
+        routes=[
+            Route("text","NLP","neurosentinel-text","0.5.0"),Route("forecast","time-series","neurosentinel-forecast","0.5.0"),Route("anomaly","anomaly-detection","neurosentinel-anomaly","0.5.0"),Route("fusion","multimodal-fusion","neurosentinel-learned-fusion","0.5.0",enabled=False),Route("vision","computer-vision","neurosentinel-vision","0.5.0")]
+        handlers={"text":self.text.analyze,"forecast":lambda values,horizon:self.forecast.predict(values,horizon),"anomaly":self.anomaly.detect,"fusion":self.fusion.combine,"vision":self.vision.classify}
+        for route in routes:
+            if route.name=="fusion": continue
+            self.serving.register(route,handlers[route.name])
+    def model_registry(self): return self.registry.snapshot()
+    def serving_snapshot(self): return self.serving.snapshot()
+    def serving_health(self): return serving_health(self.registry,self.serving)
+    def promote_model(self,name,version,metric,threshold,greater_is_better=True,status="production"):
+        record=self.registry.get(name,version); policy=PromotionPolicy({record.task:PromotionGate(metric,threshold,greater_is_better)}); policy.require(record)
+        return self.registry.promote(name,version,status).to_dict()
+    def health(self):
+        base=self.health_monitor.snapshot(len(self.registry.list())); base["serving"]=self.serving_health(); return base
     def metrics(self): return self.inference_metrics.snapshot()
     def benchmark(self): return run_tabular_benchmark().to_dict()
