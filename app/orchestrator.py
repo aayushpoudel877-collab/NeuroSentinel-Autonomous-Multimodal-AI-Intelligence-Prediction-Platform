@@ -7,6 +7,9 @@ from app.monitoring.drift import DriftDetector
 from app.monitoring.health import HealthMonitor
 from app.monitoring.metrics import InferenceMetrics
 from app.experiments.benchmark import run_tabular_benchmark
+from app.models.temporal import TemporalRegressor
+from app.models.fusion_dl import LearnedFusion
+from app.models.vision_dl import ImageFeatureClassifier
 
 class NeuroSentinelOrchestrator:
     def __init__(self):
