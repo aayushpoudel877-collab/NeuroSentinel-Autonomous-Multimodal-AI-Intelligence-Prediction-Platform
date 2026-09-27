@@ -31,7 +31,7 @@ def evaluate_retraining(request:RetrainingRequest,_=Depends(require_api_key)):
     except KeyError as exc: raise HTTPException(status_code=404,detail=str(exc)) from exc
 @app.post("/v1/retraining/plan")
 def plan_retraining(request:RetrainingPlanRequest,_=Depends(require_api_key)):
-    return engine.plan_retraining(request.model,request.model and {"retrain":request.retrain,"reasons":request.reasons,"drift_score":request.drift_score,"error_rate":request.error_rate})
+    return engine.plan_retraining(request.model,{"retrain":request.retrain,"reasons":request.reasons,"drift_score":request.drift_score,"error_rate":request.error_rate})
 @app.get("/v1/retraining/{job_id}")
 def get_retraining_job(job_id:str):
     try: return engine.retraining.load(job_id).to_dict()
