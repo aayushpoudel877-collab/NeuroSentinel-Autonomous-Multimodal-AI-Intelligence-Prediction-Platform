@@ -8,3 +8,9 @@ monitoring:
   drift_threshold: 0.1
 artifacts:
   directory: models/artifacts
+registry:
+  directory: models
+  file: models/registry.json
+serving:
+  exact_version_routes: true
+  require_registered_handler: true
