@@ -3,7 +3,7 @@ from app.schemas import TextRequest, ForecastRequest, AnomalyRequest, FusionRequ
 from app.orchestrator import NeuroSentinelOrchestrator
 from app.security.auth import require_api_key
 
-app=FastAPI(title='NeuroSentinel',version='0.3.0',description='Multimodal AI intelligence and prediction platform')
+app=FastAPI(title='NeuroSentinel',version='0.4.0',description='Multimodal AI intelligence and prediction platform')
 engine=NeuroSentinelOrchestrator()
 
 @app.get('/health')
