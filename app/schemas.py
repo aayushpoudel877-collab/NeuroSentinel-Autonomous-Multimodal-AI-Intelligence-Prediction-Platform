@@ -11,3 +11,8 @@ class RetrainingRequest(BaseModel):
     model:str=Field(min_length=1,max_length=200); reference:list[float]=Field(min_length=8); current:list[float]=Field(min_length=8); recent_retrain_count:int=Field(default=0,ge=0)
 class RetrainingPlanRequest(BaseModel):
     model:str=Field(min_length=1,max_length=200); retrain:bool; reasons:list[str]=Field(default_factory=list); drift_score:float=Field(default=0.0,ge=0); error_rate:float=Field(default=0.0,ge=0)
+class RetrainingCandidateRequest(BaseModel):
+    version:str=Field(min_length=1,max_length=50)
+    artifact_uri:str|None=None
+    metrics:dict[str,float]=Field(default_factory=dict)
+    run_id:str|None=None
