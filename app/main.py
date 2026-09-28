@@ -3,7 +3,7 @@ from app.schemas import TextRequest,ForecastRequest,AnomalyRequest,FusionRequest
 from app.orchestrator import NeuroSentinelOrchestrator
 from app.security.auth import require_api_key
 
-app=FastAPI(title="NeuroSentinel",version="0.5.0",description="Multimodal AI intelligence and prediction platform")
+app=FastAPI(title="NeuroSentinel",version="0.6.0",description="Multimodal AI intelligence and prediction platform")
 engine=NeuroSentinelOrchestrator()
 
 @app.get("/health")
@@ -31,7 +31,17 @@ def evaluate_retraining(request:RetrainingRequest,_=Depends(require_api_key)):
     except KeyError as exc: raise HTTPException(status_code=404,detail=str(exc)) from exc
 @app.post("/v1/retraining/plan")
 def plan_retraining(request:RetrainingPlanRequest,_=Depends(require_api_key)):
-    return engine.plan_retraining(request.model,{"retrain":request.retrain,"reasons":request.reasons,"drift_score":request.drift_score,"error_rate":request.error_rate})
+    try: return engine.plan_retraining(request.model,{"retrain":request.retrain,"reasons":request.reasons,"drift_score":request.drift_score,"error_rate":request.error_rate})
+    except KeyError as exc: raise HTTPException(status_code=404,detail=str(exc)) from exc
+@app.post("/v1/retraining/{job_id}/start")
+def start_retraining(job_id:str,_=Depends(require_api_key)):
+    try: return engine.retraining.start(job_id).to_dict()
+    except FileNotFoundError as exc: raise HTTPException(status_code=404,detail="retraining job not found") from exc
+    except ValueError as exc: raise HTTPException(status_code=409,detail=str(exc)) from exc
+@app.post("/v1/retraining/{job_id}/fail")
+def fail_retraining(job_id:str,error:str,_=Depends(require_api_key)):
+    try: return engine.retraining.fail(job_id,error).to_dict()
+    except FileNotFoundError as exc: raise HTTPException(status_code=404,detail="retraining job not found") from exc
 @app.get("/v1/retraining/{job_id}")
 def get_retraining_job(job_id:str,_=Depends(require_api_key)):
     try: return engine.retraining.load(job_id).to_dict()
