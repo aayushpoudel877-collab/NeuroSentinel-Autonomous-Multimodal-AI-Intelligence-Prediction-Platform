@@ -23,3 +23,24 @@ def test_not_required_job_does_not_start(tmp_path):
     assert job.status=="not_required"
     with pytest.raises(ValueError):
         manager.start(job.job_id)
+
+import numpy as np
+from app.mlops.registry import ModelRecord,ModelRegistry
+from app.training.retraining import RetrainingManager
+from app.training.retraining_pipelines import ForecastRetrainingPipeline
+
+def test_forecast_pipeline_executes_and_registers(tmp_path):
+    registry=ModelRegistry(tmp_path/"registry.json")
+    registry.register(ModelRecord("neurosentinel-forecast","1.0","time-series",status="production"))
+    manager=RetrainingManager(registry,tmp_path/"jobs")
+    job=manager.plan("neurosentinel-forecast",{"retrain":True,"reasons":["drift_threshold_exceeded"]})
+    pipeline=ForecastRetrainingPipeline(tmp_path/"models",tmp_path/"experiments")
+    values=(np.sin(np.arange(60)/3.0)*10+50).tolist()
+    candidate=manager.execute(job.job_id,lambda j:pipeline.run(j,values))
+    assert candidate.status=="candidate_ready"
+    manager.register_candidate(job.job_id)
+    record=registry.get("neurosentinel-forecast",candidate.candidate_version)
+    assert record.status=="candidate"
+    assert record.parent_version=="1.0"
+    assert record.artifact_uri
+    assert record.run_id
