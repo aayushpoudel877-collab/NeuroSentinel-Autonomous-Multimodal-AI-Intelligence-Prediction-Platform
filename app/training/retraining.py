@@ -66,6 +66,10 @@ class RetrainingManager:
         ))
         return job
 
+    def execute_and_register(self,job_id:str,trainer:Callable[[RetrainingJob],dict[str,Any]])->RetrainingJob:
+        job=self.execute(job_id,trainer)
+        return self.register_candidate(job.job_id)
+
     def execute(self,job_id:str,trainer:Callable[[RetrainingJob],dict[str,Any]])->RetrainingJob:
         job=self.start(job_id)
         try:
