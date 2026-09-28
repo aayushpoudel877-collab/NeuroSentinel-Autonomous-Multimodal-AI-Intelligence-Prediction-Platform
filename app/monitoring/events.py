@@ -3,6 +3,7 @@ from dataclasses import asdict,dataclass
 from datetime import datetime,timezone
 from pathlib import Path
 import json
+import uuid
 from typing import Any
 
 @dataclass(frozen=True)
@@ -14,10 +15,10 @@ class MonitoringEvent:
     created_at:str
 
 class MonitoringEventStore:
-    def __init__(self, path:str|Path="artifacts/monitoring/events.jsonl")->None:
+    def __init__(self,path:str|Path="artifacts/monitoring/events.jsonl")->None:
         self.path=Path(path); self.path.parent.mkdir(parents=True,exist_ok=True)
-    def append(self,event_type:str,model:str,payload:dict[str,Any],event_id:str)->MonitoringEvent:
-        event=MonitoringEvent(event_id,event_type,model,payload,datetime.now(timezone.utc).isoformat())
+    def append(self,event_type:str,model:str,payload:dict[str,Any],event_id:str|None=None)->MonitoringEvent:
+        event=MonitoringEvent(event_id or f"event-{uuid.uuid4().hex[:16]}",event_type,model,payload,datetime.now(timezone.utc).isoformat())
         with self.path.open("a",encoding="utf-8") as handle: handle.write(json.dumps(asdict(event),sort_keys=True)+"\n")
         return event
     def recent(self,limit:int=100)->list[dict[str,Any]]:
