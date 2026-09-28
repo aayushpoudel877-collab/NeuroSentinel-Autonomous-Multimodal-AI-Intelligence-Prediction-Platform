@@ -43,6 +43,6 @@ class NeuroSentinelOrchestrator:
     def benchmark(self): return run_tabular_benchmark().to_dict()
     def evaluate_retraining(self,model,reference,current,recent_retrain_count=0):
         record=self.registry.get(model); drift=self.drift.compare(reference,current); decision=self.retraining_decision.evaluate(drift["drift_score"],self.inference_metrics.calls,self.inference_metrics.errors,recent_retrain_count); decision["model"]=model; decision["current_version"]=record.version
-        self.events.append("retraining_decision",model,decision,f"decision-{model}-{record.version}-{len(self.events.recent(100000))}")
+        self.events.append("retraining_decision",model,decision)
         return decision
     def plan_retraining(self,model,decision): return self.retraining.plan(model,decision).to_dict()
