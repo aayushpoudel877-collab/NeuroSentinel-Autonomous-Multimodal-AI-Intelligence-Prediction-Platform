@@ -45,6 +45,13 @@ def register_retraining_candidate(job_id:str,request:RetrainingCandidateRequest,
         return engine.retraining.register_candidate(job_id).to_dict()
     except FileNotFoundError as exc: raise HTTPException(status_code=404,detail="retraining job not found") from exc
     except ValueError as exc: raise HTTPException(status_code=409,detail=str(exc)) from exc
+@app.post("/v1/retraining/{job_id}/candidate")
+def register_retraining_candidate(job_id:str,request:RetrainingCandidateRequest,_=Depends(require_api_key)):
+    try:
+        engine.retraining.mark_candidate(job_id,request.version,request.artifact_uri,request.metrics,request.run_id)
+        return engine.retraining.register_candidate(job_id).to_dict()
+    except FileNotFoundError as exc: raise HTTPException(status_code=404,detail="retraining job not found") from exc
+    except ValueError as exc: raise HTTPException(status_code=409,detail=str(exc)) from exc
 @app.post("/v1/retraining/{job_id}/fail")
 def fail_retraining(job_id:str,error:str,_=Depends(require_api_key)):
     try: return engine.retraining.fail(job_id,error).to_dict()
