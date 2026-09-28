@@ -1,5 +1,5 @@
 from fastapi import FastAPI,UploadFile,File,HTTPException,Depends
-from app.schemas import TextRequest,ForecastRequest,AnomalyRequest,FusionRequest,DriftRequest,PromotionRequest,RetrainingRequest,RetrainingPlanRequest
+from app.schemas import TextRequest,ForecastRequest,AnomalyRequest,FusionRequest,DriftRequest,PromotionRequest,RetrainingRequest,RetrainingPlanRequest,RetrainingCandidateRequest
 from app.orchestrator import NeuroSentinelOrchestrator
 from app.security.auth import require_api_key
 
@@ -36,6 +36,13 @@ def plan_retraining(request:RetrainingPlanRequest,_=Depends(require_api_key)):
 @app.post("/v1/retraining/{job_id}/start")
 def start_retraining(job_id:str,_=Depends(require_api_key)):
     try: return engine.retraining.start(job_id).to_dict()
+    except FileNotFoundError as exc: raise HTTPException(status_code=404,detail="retraining job not found") from exc
+    except ValueError as exc: raise HTTPException(status_code=409,detail=str(exc)) from exc
+@app.post("/v1/retraining/{job_id}/candidate")
+def register_retraining_candidate(job_id:str,request:RetrainingCandidateRequest,_=Depends(require_api_key)):
+    try:
+        engine.retraining.mark_candidate(job_id,request.version,request.artifact_uri,request.metrics,request.run_id)
+        return engine.retraining.register_candidate(job_id).to_dict()
     except FileNotFoundError as exc: raise HTTPException(status_code=404,detail="retraining job not found") from exc
     except ValueError as exc: raise HTTPException(status_code=409,detail=str(exc)) from exc
 @app.post("/v1/retraining/{job_id}/fail")
