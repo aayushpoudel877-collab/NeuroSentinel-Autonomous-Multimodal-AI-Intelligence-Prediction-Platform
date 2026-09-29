@@ -1,5 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
+import math
 from typing import Mapping
 from app.mlops.registry import ModelRecord
 
@@ -10,7 +11,9 @@ class PromotionGate:
     greater_is_better: bool = True
     def evaluate(self, metrics: Mapping[str,float]) -> tuple[bool,str]:
         if self.metric not in metrics: return False, f"required metric missing: {self.metric}"
-        value=float(metrics[self.metric]); passed=value>=self.minimum if self.greater_is_better else value<=self.minimum
+        value=float(metrics[self.metric])
+        if not math.isfinite(value): return False, f"{self.metric} must be finite"
+        passed=value>=self.minimum if self.greater_is_better else value<=self.minimum
         comparison=">=" if self.greater_is_better else "<="
         return passed, f"{self.metric}={value:.6g} {comparison} {self.minimum:.6g}"
 
