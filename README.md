@@ -19,6 +19,7 @@ Client -> FastAPI API -> Orchestrator -> Model Layer -> Fusion/Monitoring -> Str
 - Feature validation and rolling statistics
 - Experiment registry and evaluation metrics
 - Health/model registry endpoints
+- Automated retraining control plane with candidate staging and persistent schedules
 - CLI demo and automated tests
 - Docker and GitHub Actions CI structure
 
@@ -32,6 +33,9 @@ Client -> FastAPI API -> Orchestrator -> Model Layer -> Fusion/Monitoring -> Str
 - POST /v1/vision/classify
 - POST /v1/fusion
 - POST /v1/drift
+- POST /v1/training/forecast/run
+- POST /v1/training/candidate/evaluate
+- GET/POST /v1/training/schedules
 
 Interactive API documentation is exposed by FastAPI at /docs when the service is running.
 
