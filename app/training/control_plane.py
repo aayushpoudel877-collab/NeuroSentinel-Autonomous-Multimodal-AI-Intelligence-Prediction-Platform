@@ -26,6 +26,8 @@ class TrainingControlPlane:
 
     def evaluate_candidate(self,model:str,version:str,metric:str="mae",threshold:float=5.0,greater_is_better:bool=False)->dict[str,Any]:
         record=self.registry.get(model,version)
+        if record.status!="candidate":
+            raise ValueError(f"only candidate models can be evaluated for staging: {model}:{version}")
         gate=PromotionGate(metric,threshold,greater_is_better)
         passed,reason=gate.evaluate(record.metrics or {})
         result={"model":model,"version":version,"passed":passed,"reason":reason,"metric":metric,"threshold":threshold,"action":"staged" if passed else "rejected"}
