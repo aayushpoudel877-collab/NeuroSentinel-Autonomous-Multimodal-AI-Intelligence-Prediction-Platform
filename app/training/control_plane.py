@@ -1,4 +1,5 @@
 from __future__ import annotations
+from pathlib import Path
 from typing import Any
 from app.mlops.gates import PromotionGate
 from app.mlops.registry import ModelRegistry
@@ -9,11 +10,11 @@ from app.training.scheduler import TrainingScheduler
 class TrainingControlPlane:
     """Coordinates executable retraining, candidate evaluation, and scheduling."""
 
-    def __init__(self,registry:ModelRegistry,retraining:RetrainingManager)->None:
+    def __init__(self,registry:ModelRegistry,retraining:RetrainingManager,artifact_root:str|Path="models/artifacts",experiment_root:str|Path="artifacts/experiments",schedule_path:str|Path="artifacts/training/schedules.json")->None:
         self.registry=registry
         self.retraining=retraining
-        self.scheduler=TrainingScheduler()
-        self.forecast_pipeline=ForecastRetrainingPipeline()
+        self.scheduler=TrainingScheduler(schedule_path)
+        self.forecast_pipeline=ForecastRetrainingPipeline(artifact_root,experiment_root)
 
     def run_forecast(self,model:str,values:list[float],window:int=6)->dict[str,Any]:
         record=self.registry.get(model)
@@ -27,9 +28,8 @@ class TrainingControlPlane:
         record=self.registry.get(model,version)
         gate=PromotionGate(metric,threshold,greater_is_better)
         passed,reason=gate.evaluate(record.metrics or {})
-        result={"model":model,"version":version,"passed":passed,"reason":reason,"metric":metric,"threshold":threshold}
-        if passed:
-            self.registry.promote(model,version,"staging")
+        result={"model":model,"version":version,"passed":passed,"reason":reason,"metric":metric,"threshold":threshold,"action":"staged" if passed else "rejected"}
+        if passed: self.registry.promote(model,version,"staging")
         return result
 
     def create_schedule(self,model:str,interval_minutes:int,enabled:bool=True)->dict[str,Any]:
