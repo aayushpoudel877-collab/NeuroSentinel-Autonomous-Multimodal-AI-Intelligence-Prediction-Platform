@@ -1,9 +1,9 @@
 from fastapi import FastAPI,UploadFile,File,HTTPException,Depends
-from app.schemas import TextRequest,ForecastRequest,AnomalyRequest,FusionRequest,DriftRequest,PromotionRequest,RetrainingRequest,RetrainingPlanRequest,RetrainingCandidateRequest
+from app.schemas import TextRequest,ForecastRequest,AnomalyRequest,FusionRequest,DriftRequest,PromotionRequest,RetrainingRequest,RetrainingPlanRequest,RetrainingCandidateRequest,ForecastTrainingRequest,CandidateEvaluationRequest,TrainingScheduleRequest
 from app.orchestrator import NeuroSentinelOrchestrator
 from app.security.auth import require_api_key
 
-app=FastAPI(title="NeuroSentinel",version="0.6.0",description="Multimodal AI intelligence and prediction platform")
+app=FastAPI(title="NeuroSentinel",version="0.7.0",description="Multimodal AI intelligence and prediction platform")
 engine=NeuroSentinelOrchestrator()
 
 @app.get("/health")
@@ -20,46 +20,78 @@ def serving(): return engine.serving_snapshot()
 def serving_health(): return engine.serving_health()
 @app.get("/v1/monitoring/events")
 def monitoring_events(_=Depends(require_api_key)): return engine.events.recent(100)
+
 @app.post("/v1/models/promote")
 def promote(request:PromotionRequest,_=Depends(require_api_key)):
     try: return engine.promote_model(request.model,request.version,request.metric,request.threshold,request.greater_is_better,request.status)
     except KeyError as exc: raise HTTPException(status_code=404,detail=str(exc)) from exc
     except ValueError as exc: raise HTTPException(status_code=409,detail=str(exc)) from exc
+
 @app.post("/v1/retraining/evaluate")
 def evaluate_retraining(request:RetrainingRequest,_=Depends(require_api_key)):
     try: return engine.evaluate_retraining(request.model,request.reference,request.current,request.recent_retrain_count)
     except KeyError as exc: raise HTTPException(status_code=404,detail=str(exc)) from exc
+
 @app.post("/v1/retraining/plan")
 def plan_retraining(request:RetrainingPlanRequest,_=Depends(require_api_key)):
     try: return engine.plan_retraining(request.model,{"retrain":request.retrain,"reasons":request.reasons,"drift_score":request.drift_score,"error_rate":request.error_rate})
     except KeyError as exc: raise HTTPException(status_code=404,detail=str(exc)) from exc
+
 @app.post("/v1/retraining/{job_id}/start")
 def start_retraining(job_id:str,_=Depends(require_api_key)):
     try: return engine.retraining.start(job_id).to_dict()
     except FileNotFoundError as exc: raise HTTPException(status_code=404,detail="retraining job not found") from exc
     except ValueError as exc: raise HTTPException(status_code=409,detail=str(exc)) from exc
+
 @app.post("/v1/retraining/{job_id}/candidate")
 def register_retraining_candidate(job_id:str,request:RetrainingCandidateRequest,_=Depends(require_api_key)):
     try:
-        engine.retraining.mark_candidate(job_id,request.version,request.artifact_uri,request.metrics,request.run_id)
+        engine.retraining.mark_candidate(job_id,request.version,request.artifact_uri,request.metrics,request.run_id,request.artifact_sha256)
         return engine.retraining.register_candidate(job_id).to_dict()
     except FileNotFoundError as exc: raise HTTPException(status_code=404,detail="retraining job not found") from exc
     except ValueError as exc: raise HTTPException(status_code=409,detail=str(exc)) from exc
-@app.post("/v1/retraining/{job_id}/candidate")
-def register_retraining_candidate(job_id:str,request:RetrainingCandidateRequest,_=Depends(require_api_key)):
-    try:
-        engine.retraining.mark_candidate(job_id,request.version,request.artifact_uri,request.metrics,request.run_id)
-        return engine.retraining.register_candidate(job_id).to_dict()
-    except FileNotFoundError as exc: raise HTTPException(status_code=404,detail="retraining job not found") from exc
-    except ValueError as exc: raise HTTPException(status_code=409,detail=str(exc)) from exc
+
 @app.post("/v1/retraining/{job_id}/fail")
 def fail_retraining(job_id:str,error:str,_=Depends(require_api_key)):
     try: return engine.retraining.fail(job_id,error).to_dict()
     except FileNotFoundError as exc: raise HTTPException(status_code=404,detail="retraining job not found") from exc
+    except ValueError as exc: raise HTTPException(status_code=409,detail=str(exc)) from exc
+
 @app.get("/v1/retraining/{job_id}")
 def get_retraining_job(job_id:str,_=Depends(require_api_key)):
     try: return engine.retraining.load(job_id).to_dict()
     except FileNotFoundError as exc: raise HTTPException(status_code=404,detail="retraining job not found") from exc
+
+@app.post("/v1/training/forecast/run")
+def run_forecast_training(request:ForecastTrainingRequest,_=Depends(require_api_key)):
+    try: return engine.training.run_forecast(request.model,request.values,request.window)
+    except KeyError as exc: raise HTTPException(status_code=404,detail=str(exc)) from exc
+    except ValueError as exc: raise HTTPException(status_code=409,detail=str(exc)) from exc
+
+@app.post("/v1/training/candidate/evaluate")
+def evaluate_candidate(request:CandidateEvaluationRequest,_=Depends(require_api_key)):
+    try: return engine.training.evaluate_candidate(request.model,request.version,request.metric,request.threshold,request.greater_is_better)
+    except KeyError as exc: raise HTTPException(status_code=404,detail=str(exc)) from exc
+    except ValueError as exc: raise HTTPException(status_code=409,detail=str(exc)) from exc
+
+@app.get("/v1/training/schedules")
+def list_training_schedules(_=Depends(require_api_key)): return engine.training.scheduler.list()
+
+@app.post("/v1/training/schedules")
+def create_training_schedule(request:TrainingScheduleRequest,_=Depends(require_api_key)):
+    try: return engine.training.create_schedule(request.model,request.interval_minutes,request.enabled)
+    except KeyError as exc: raise HTTPException(status_code=404,detail=str(exc)) from exc
+    except ValueError as exc: raise HTTPException(status_code=409,detail=str(exc)) from exc
+
+@app.post("/v1/training/schedules/{schedule_id}/run")
+def run_training_schedule(schedule_id:str,request:ForecastTrainingRequest,_=Depends(require_api_key)):
+    try: return engine.training.run_scheduled_forecast(schedule_id,request.values,request.window)
+    except KeyError as exc: raise HTTPException(status_code=404,detail=str(exc)) from exc
+    except ValueError as exc: raise HTTPException(status_code=409,detail=str(exc)) from exc
+
+@app.get("/v1/training/schedules/due")
+def due_training_schedules(_=Depends(require_api_key)): return engine.training.due_schedules()
+
 @app.get("/v1/benchmark")
 def benchmark(): return engine.benchmark()
 @app.post("/v1/text/analyze")
