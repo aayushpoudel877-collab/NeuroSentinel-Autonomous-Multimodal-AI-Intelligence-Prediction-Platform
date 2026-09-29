@@ -3,7 +3,7 @@ from app.schemas import TextRequest,ForecastRequest,AnomalyRequest,FusionRequest
 from app.orchestrator import NeuroSentinelOrchestrator
 from app.security.auth import require_api_key
 
-app=FastAPI(title="NeuroSentinel",version="0.7.0",description="Multimodal AI intelligence and prediction platform")
+app=FastAPI(title="NeuroSentinel",version="0.8.0",description="Multimodal AI intelligence and prediction platform")
 engine=NeuroSentinelOrchestrator()
 
 @app.get("/health")
@@ -74,6 +74,9 @@ def evaluate_candidate(request:CandidateEvaluationRequest,_=Depends(require_api_
     except KeyError as exc: raise HTTPException(status_code=404,detail=str(exc)) from exc
     except ValueError as exc: raise HTTPException(status_code=409,detail=str(exc)) from exc
 
+@app.get("/v1/training/schedules/due")
+def due_training_schedules(_=Depends(require_api_key)): return engine.training.due_schedules()
+
 @app.get("/v1/training/schedules")
 def list_training_schedules(_=Depends(require_api_key)): return engine.training.scheduler.list()
 
@@ -88,9 +91,6 @@ def run_training_schedule(schedule_id:str,request:ForecastTrainingRequest,_=Depe
     try: return engine.training.run_scheduled_forecast(schedule_id,request.values,request.window)
     except KeyError as exc: raise HTTPException(status_code=404,detail=str(exc)) from exc
     except ValueError as exc: raise HTTPException(status_code=409,detail=str(exc)) from exc
-
-@app.get("/v1/training/schedules/due")
-def due_training_schedules(_=Depends(require_api_key)): return engine.training.due_schedules()
 
 @app.get("/v1/benchmark")
 def benchmark(): return engine.benchmark()
