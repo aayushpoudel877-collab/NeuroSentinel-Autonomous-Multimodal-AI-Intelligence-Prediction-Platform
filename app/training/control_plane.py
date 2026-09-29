@@ -6,6 +6,7 @@ from app.mlops.registry import ModelRegistry
 from app.training.retraining import RetrainingManager
 from app.training.retraining_pipelines import ForecastRetrainingPipeline
 from app.training.scheduler import TrainingScheduler
+from app.training.worker import TrainingWorker
 
 class TrainingControlPlane:
     """Coordinates executable retraining, candidate evaluation, and scheduling."""
@@ -14,6 +15,7 @@ class TrainingControlPlane:
         self.registry=registry
         self.retraining=retraining
         self.scheduler=TrainingScheduler(schedule_path)
+        self.worker=TrainingWorker(self.scheduler)
         self.forecast_pipeline=ForecastRetrainingPipeline(artifact_root,experiment_root)
 
     def run_forecast(self,model:str,values:list[float],window:int=6)->dict[str,Any]:
@@ -26,24 +28,16 @@ class TrainingControlPlane:
 
     def evaluate_candidate(self,model:str,version:str,metric:str="mae",threshold:float=5.0,greater_is_better:bool=False)->dict[str,Any]:
         record=self.registry.get(model,version)
-        if record.status!="candidate":
-            raise ValueError(f"only candidate models can be evaluated for staging: {model}:{version}")
-        gate=PromotionGate(metric,threshold,greater_is_better)
-        passed,reason=gate.evaluate(record.metrics or {})
+        if record.status!="candidate": raise ValueError(f"only candidate models can be evaluated for staging: {model}:{version}")
+        gate=PromotionGate(metric,threshold,greater_is_better); passed,reason=gate.evaluate(record.metrics or {})
         result={"model":model,"version":version,"passed":passed,"reason":reason,"metric":metric,"threshold":threshold,"action":"staged" if passed else "rejected"}
         if passed: self.registry.promote(model,version,"staging")
         return result
 
     def create_schedule(self,model:str,interval_minutes:int,enabled:bool=True)->dict[str,Any]:
-        self.registry.get(model)
-        return self.scheduler.create(model,interval_minutes,enabled).to_dict()
+        self.registry.get(model); return self.scheduler.create(model,interval_minutes,enabled).to_dict()
 
-    def due_schedules(self)->list[dict[str,Any]]:
-        return [x for x in self.scheduler.list() if self.scheduler.due(x["schedule_id"])]
+    def due_schedules(self)->list[dict[str,Any]]: return self.worker.due()
 
     def run_scheduled_forecast(self,schedule_id:str,values:list[float],window:int=6)->dict[str,Any]:
-        schedule=self.scheduler.get(schedule_id)
-        if not self.scheduler.due(schedule_id): raise ValueError("schedule is not due")
-        result=self.run_forecast(schedule.model,values,window)
-        self.scheduler.mark_run(schedule_id)
-        return {"schedule":self.scheduler.get(schedule_id).to_dict(),"training":result}
+        return self.worker.run_one(schedule_id,lambda schedule:self.run_forecast(schedule["model"],values,window))
