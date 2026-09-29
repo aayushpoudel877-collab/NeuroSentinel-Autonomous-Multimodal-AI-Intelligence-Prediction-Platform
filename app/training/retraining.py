@@ -21,6 +21,7 @@ class RetrainingJob:
     candidate_version:str|None=None
     run_id:str|None=None
     artifact_uri:str|None=None
+    artifact_sha256:str|None=None
     metrics:dict[str,float]|None=None
     error:str|None=None
     finished_at:str|None=None
@@ -44,25 +45,28 @@ class RetrainingManager:
 
     def fail(self,job_id:str,error:str)->RetrainingJob:
         job=self.load(job_id)
+        if job.status not in {"queued","running"}: raise ValueError(f"job cannot fail from state: {job.status}")
         job.status="failed"; job.error=error; job.finished_at=datetime.now(timezone.utc).isoformat()
         self._write(job); return job
 
-    def mark_candidate(self,job_id:str,version:str,artifact_uri:str|None=None,metrics:dict[str,float]|None=None,run_id:str|None=None)->RetrainingJob:
+    def mark_candidate(self,job_id:str,version:str,artifact_uri:str|None=None,metrics:dict[str,float]|None=None,run_id:str|None=None,artifact_sha256:str|None=None)->RetrainingJob:
         job=self.load(job_id)
         if job.status!="running": raise ValueError(f"candidate cannot be recorded from state: {job.status}")
-        job.candidate_version=version; job.artifact_uri=artifact_uri; job.metrics=metrics or {}; job.run_id=run_id
+        if not version.strip(): raise ValueError("candidate version is required")
+        job.candidate_version=version; job.artifact_uri=artifact_uri; job.artifact_sha256=artifact_sha256
+        job.metrics=metrics or {}; job.run_id=run_id
         job.status="candidate_ready"; job.finished_at=datetime.now(timezone.utc).isoformat()
         self._write(job); return job
 
-    def register_candidate(self,job_id:str,artifact_uri:str|None=None,metrics:dict[str,float]|None=None,run_id:str|None=None)->RetrainingJob:
+    def register_candidate(self,job_id:str,artifact_uri:str|None=None,metrics:dict[str,float]|None=None,run_id:str|None=None,artifact_sha256:str|None=None)->RetrainingJob:
         job=self.load(job_id)
         if job.status!="candidate_ready" or not job.candidate_version:
             raise ValueError("job must have a candidate version before registry registration")
         source=self.registry.get(job.model,job.source_version) if job.source_version else self.registry.get(job.model)
         self.registry.register(ModelRecord(
             name=job.model, version=job.candidate_version, task=job.task, status="candidate",
-            artifact_uri=artifact_uri or job.artifact_uri, metrics=metrics or job.metrics or {},
-            run_id=run_id or job.run_id, parent_version=source.version
+            artifact_uri=artifact_uri or job.artifact_uri, artifact_sha256=artifact_sha256 or job.artifact_sha256,
+            metrics=metrics or job.metrics or {}, run_id=run_id or job.run_id, parent_version=source.version
         ))
         return job
 
@@ -75,7 +79,7 @@ class RetrainingManager:
         try:
             result=trainer(job)
             version=str(result["version"])
-            return self.mark_candidate(job.job_id,version,result.get("artifact_uri"),result.get("metrics"),result.get("run_id"))
+            return self.mark_candidate(job.job_id,version,result.get("artifact_uri"),result.get("metrics"),result.get("run_id"),result.get("artifact_sha256"))
         except Exception as exc:
             self.fail(job.job_id,str(exc))
             raise
