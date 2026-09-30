@@ -50,7 +50,9 @@ class TrainingScheduler:
             except ImportError:
                 import msvcrt
                 handle.seek(0)
-                msvcrt.locking(handle.fileno(),msvcrt.LK_LOCK,1)
+                if handle.read(1)=="":
+                    handle.seek(0); handle.write("0"); handle.flush()
+                handle.seek(0); msvcrt.locking(handle.fileno(),msvcrt.LK_LOCK,1)
             yield
         finally:
             try:
@@ -58,8 +60,7 @@ class TrainingScheduler:
                 fcntl.flock(handle.fileno(),fcntl.LOCK_UN)
             except ImportError:
                 import msvcrt
-                handle.seek(0)
-                msvcrt.locking(handle.fileno(),msvcrt.LK_UNLCK,1)
+                handle.seek(0); msvcrt.locking(handle.fileno(),msvcrt.LK_UNLCK,1)
             handle.close()
 
     def create(self,model:str,interval_minutes:int,enabled:bool=True)->TrainingSchedule:
@@ -67,9 +68,13 @@ class TrainingScheduler:
         if interval_minutes<1: raise ValueError("interval_minutes must be positive")
         now=datetime.now(timezone.utc)
         schedule=TrainingSchedule(f"schedule-{uuid.uuid4().hex[:12]}",model,interval_minutes,enabled,now.isoformat(),(now+timedelta(minutes=interval_minutes)).isoformat())
-        self._schedules[schedule.schedule_id]=schedule; self._save(); return schedule
+        with self._file_lock():
+            self._load(); self._schedules[schedule.schedule_id]=schedule; self._save()
+        return schedule
 
-    def list(self)->list[dict[str,Any]]: return [x.to_dict() for x in self._schedules.values()]
+    def list(self)->list[dict[str,Any]]:
+        with self._file_lock():
+            self._load(); return [x.to_dict() for x in self._schedules.values()]
 
     def get(self,schedule_id:str)->TrainingSchedule:
         if schedule_id not in self._schedules: raise KeyError(f"schedule not found: {schedule_id}")
@@ -85,31 +90,34 @@ class TrainingScheduler:
     def claim(self,schedule_id:str,now:datetime|None=None)->str:
         current=now or datetime.now(timezone.utc)
         with self._file_lock():
-            self._load()
-            schedule=self.get(schedule_id)
+            self._load(); schedule=self.get(schedule_id)
             if not self.due(schedule_id,current): raise ValueError("schedule is not due or is already leased")
             lease_id=f"lease-{uuid.uuid4().hex[:12]}"
             schedule.lease_id=lease_id; schedule.lease_expires_at=(current+timedelta(minutes=self.lease_minutes)).isoformat()
-            self._save()
-            return lease_id
+            self._save(); return lease_id
 
     def complete(self,schedule_id:str,lease_id:str,job_id:str,when:datetime|None=None)->TrainingSchedule:
-        schedule=self.get(schedule_id)
-        if schedule.lease_id!=lease_id: raise ValueError("invalid or expired schedule lease")
-        current=when or datetime.now(timezone.utc)
-        schedule.last_run_at=current.isoformat(); schedule.last_job_id=job_id; schedule.next_run_at=(current+timedelta(minutes=schedule.interval_minutes)).isoformat()
-        schedule.lease_id=None; schedule.lease_expires_at=None; schedule.failure_count=0; self._save(); return schedule
+        if not job_id.strip(): raise ValueError("job_id is required")
+        with self._file_lock():
+            self._load(); schedule=self.get(schedule_id)
+            if schedule.lease_id!=lease_id: raise ValueError("invalid or expired schedule lease")
+            current=when or datetime.now(timezone.utc)
+            schedule.last_run_at=current.isoformat(); schedule.last_job_id=job_id; schedule.next_run_at=(current+timedelta(minutes=schedule.interval_minutes)).isoformat()
+            schedule.lease_id=None; schedule.lease_expires_at=None; schedule.failure_count=0; self._save(); return schedule
 
     def fail(self,schedule_id:str,lease_id:str)->TrainingSchedule:
-        schedule=self.get(schedule_id)
-        if schedule.lease_id!=lease_id: raise ValueError("invalid or expired schedule lease")
-        schedule.lease_id=None; schedule.lease_expires_at=None; schedule.failure_count+=1; self._save(); return schedule
+        with self._file_lock():
+            self._load(); schedule=self.get(schedule_id)
+            if schedule.lease_id!=lease_id: raise ValueError("invalid or expired schedule lease")
+            schedule.lease_id=None; schedule.lease_expires_at=None; schedule.failure_count+=1; self._save(); return schedule
 
     def mark_run(self,schedule_id:str,when:datetime|None=None)->TrainingSchedule:
-        schedule=self.get(schedule_id); current=when or datetime.now(timezone.utc)
-        schedule.last_run_at=current.isoformat(); schedule.next_run_at=(current+timedelta(minutes=schedule.interval_minutes)).isoformat(); schedule.lease_id=None; schedule.lease_expires_at=None; self._save(); return schedule
+        with self._file_lock():
+            self._load(); schedule=self.get(schedule_id); current=when or datetime.now(timezone.utc)
+            schedule.last_run_at=current.isoformat(); schedule.next_run_at=(current+timedelta(minutes=schedule.interval_minutes)).isoformat(); schedule.lease_id=None; schedule.lease_expires_at=None; self._save(); return schedule
 
     def set_enabled(self,schedule_id:str,enabled:bool)->TrainingSchedule:
-        schedule=self.get(schedule_id); schedule.enabled=enabled
-        if not enabled: schedule.lease_id=None; schedule.lease_expires_at=None
-        self._save(); return schedule
+        with self._file_lock():
+            self._load(); schedule=self.get(schedule_id); schedule.enabled=enabled
+            if not enabled: schedule.lease_id=None; schedule.lease_expires_at=None
+            self._save(); return schedule
