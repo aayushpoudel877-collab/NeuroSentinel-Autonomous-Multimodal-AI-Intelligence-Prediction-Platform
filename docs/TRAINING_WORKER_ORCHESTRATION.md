@@ -55,3 +55,21 @@ The current concrete training implementation remains the lightweight Ridge forec
 ## Verification
 
 GitHub source inspection was completed after the changes. Remote workflow results remain unavailable for the repository's latest commits, so CI success is not claimed without an actual workflow run.
+
+
+## Phase 16 — Pipeline Registry & Artifact Integrity
+
+Phase 16 adds a named training-pipeline registry and hardens model registration.
+
+- `TrainingPipelineRegistry` provides explicit named dispatch instead of coupling workers to one concrete trainer.
+- The forecast Ridge pipeline is registered as `forecast-ridge`.
+- `GET /v1/training/pipelines` exposes the registered pipeline catalog.
+- Registry registration validates metric finiteness.
+- When an artifact URI is supplied, the registry requires the file to exist.
+- When an artifact SHA-256 is supplied, the registry recomputes the artifact digest and rejects mismatches.
+- Schedule mutations now use the same filesystem lock used by lease claims and reload persistent state before mutation.
+- Worker failure cleanup no longer masks the original training exception if lease cleanup itself fails.
+
+The platform version is now `0.9.0`.
+
+Production promotion is still explicit and gate-controlled; successful training only creates a candidate and candidate evaluation can move it to staging.
