@@ -1,7 +1,9 @@
 from __future__ import annotations
 from dataclasses import asdict,dataclass
 from datetime import datetime,timezone
+import hashlib
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -28,9 +30,23 @@ class ModelRegistry:
         if self.path.exists(): self._records=[ModelRecord(**item) for item in json.loads(self.path.read_text(encoding="utf-8")).get("models",[])]
     def _save(self)->None:
         payload={"models":[r.to_dict() for r in self._records]}; tmp=self.path.with_suffix(self.path.suffix+".tmp"); tmp.write_text(json.dumps(payload,indent=2,sort_keys=True)+"\n",encoding="utf-8"); tmp.replace(self.path)
+    @staticmethod
+    def _validate_metrics(metrics:dict[str,float]|None)->None:
+        for key,value in (metrics or {}).items():
+            if not key.strip(): raise ValueError("metric names must be non-empty")
+            if not math.isfinite(float(value)): raise ValueError(f"metric must be finite: {key}")
+    @staticmethod
+    def _verify_artifact(uri:str|None,expected_hash:str|None)->None:
+        if not uri: return
+        path=Path(uri)
+        if not path.exists() or not path.is_file(): raise ValueError(f"artifact does not exist: {uri}")
+        if expected_hash:
+            digest=hashlib.sha256(path.read_bytes()).hexdigest()
+            if digest!=expected_hash: raise ValueError("artifact sha256 does not match registry metadata")
     def register(self,record:ModelRecord)->ModelRecord:
         if record.status not in self.VALID_STATES: raise ValueError(f"invalid model status: {record.status}")
         if not record.name or not record.version or not record.task: raise ValueError("model name, version, and task are required")
+        self._validate_metrics(record.metrics); self._verify_artifact(record.artifact_uri,record.artifact_sha256)
         if not record.created_at: record.created_at=datetime.now(timezone.utc).isoformat()
         self._records=[r for r in self._records if not(r.name==record.name and r.version==record.version)]; self._records.append(record); self._save(); return record
     def list(self,task:str|None=None)->list[dict[str,Any]]:
