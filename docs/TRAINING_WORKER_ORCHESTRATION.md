@@ -73,3 +73,16 @@ Phase 16 adds a named training-pipeline registry and hardens model registration.
 The platform version is now `0.9.0`.
 
 Production promotion is still explicit and gate-controlled; successful training only creates a candidate and candidate evaluation can move it to staging.
+
+
+## Phase 17 — Champion/Challenger Evaluation
+
+Phase 17 adds a read-only challenger evaluator that compares a candidate model with the current production champion for the same task.
+
+- Missing candidate or champion metrics fail safely.
+- Lower-is-better and higher-is-better metrics are supported.
+- A minimum improvement margin can be required.
+- Challenger evaluation does not mutate registry state.
+- Explicit promotion remains a separate operation.
+
+Platform version: `1.0.0`.
