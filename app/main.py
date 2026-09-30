@@ -1,9 +1,9 @@
 from fastapi import FastAPI,UploadFile,File,HTTPException,Depends
-from app.schemas import TextRequest,ForecastRequest,AnomalyRequest,FusionRequest,DriftRequest,PromotionRequest,RetrainingRequest,RetrainingPlanRequest,RetrainingCandidateRequest,ForecastTrainingRequest,CandidateEvaluationRequest,TrainingScheduleRequest
+from app.schemas import TextRequest,ForecastRequest,AnomalyRequest,FusionRequest,DriftRequest,PromotionRequest,RetrainingRequest,RetrainingPlanRequest,RetrainingCandidateRequest,ForecastTrainingRequest,CandidateEvaluationRequest,TrainingScheduleRequest,ChallengerEvaluationRequest
 from app.orchestrator import NeuroSentinelOrchestrator
 from app.security.auth import require_api_key
 
-app=FastAPI(title="NeuroSentinel",version="0.9.0",description="Multimodal AI intelligence and prediction platform")
+app=FastAPI(title="NeuroSentinel",version="1.0.0",description="Multimodal AI intelligence and prediction platform")
 engine=NeuroSentinelOrchestrator()
 
 @app.get("/health")
@@ -71,6 +71,12 @@ def run_forecast_training(request:ForecastTrainingRequest,_=Depends(require_api_
 @app.post("/v1/training/candidate/evaluate")
 def evaluate_candidate(request:CandidateEvaluationRequest,_=Depends(require_api_key)):
     try: return engine.training.evaluate_candidate(request.model,request.version,request.metric,request.threshold,request.greater_is_better)
+    except KeyError as exc: raise HTTPException(status_code=404,detail=str(exc)) from exc
+    except ValueError as exc: raise HTTPException(status_code=409,detail=str(exc)) from exc
+
+@app.post("/v1/training/challenger/evaluate")
+def evaluate_challenger(request:ChallengerEvaluationRequest,_=Depends(require_api_key)):
+    try: return engine.training.evaluate_challenger(request.model,request.version,request.metric,request.minimum_improvement,request.greater_is_better)
     except KeyError as exc: raise HTTPException(status_code=404,detail=str(exc)) from exc
     except ValueError as exc: raise HTTPException(status_code=409,detail=str(exc)) from exc
 
